@@ -1,0 +1,54 @@
+# Read data
+card_balance<- read.csv(file = "card_balance.csv", stringsAsFactors = F)
+# --------------------- Logistic Regression -----------------------------
+
+# Target Variable: If Billed Amount reduces below 20%
+
+names(sm_card_balance)
+
+sm_card_balance$Pred_bill_drop <- ifelse (sm_card_balance$billed_3m < 0.2*sm_card_balance$Pre_billed_amt_3m,1,0)
+
+table(sm_card_balance$Pred_bill_drop)
+
+# Demographic Variables
+
+Billed_amt_drop_logit <- glm(formula = Pred_bill_drop~
+                               AGE+Pre_billed_amt_3m+Billed_amount_1+Payment_1+Payment_2+Payment_3+
+                               Billed_amount_2
+                             ,
+                      family=binomial,
+                      data=sm_card_balance)
+summary(Billed_amt_drop_logit)
+
+# Predict
+sm_card_balance$Pred_Amt_drop_prob <- predict(Billed_amt_drop_logit,
+                                              sm_card_balance,
+                              type = c("response"))
+
+table(sm_card_balance$Pred_bill_drop)/nrow(sm_card_balance)
+quantile(sm_card_balance$Pred_Amt_drop_prob, 
+         probs = seq(0,1,0.05))
+
+sm_card_balance$Pred_Amt_drop_Class <- ifelse(sm_card_balance$Pred_Amt_drop_prob >0.288,1,0)
+
+table(sm_card_balance$Pred_Amt_drop_Class,sm_card_balance$Pred_bill_drop)
+
+library(caret)
+
+# Create Confusion Matrix
+confusionMatrix(data=factor(sm_card_balance$Pred_Amt_drop_Class),
+                reference=sm_card_balance$Pred_bill_drop,
+                positive='1')
+
+library("ROCR")
+
+perf.obj <- prediction(predictions=sm_card_balance$Pred_Amt_drop_Class,
+                       labels=sm_card_balance$Pred_bill_drop)
+# Get data for ROC curve
+roc.obj <- performance(perf.obj, measure="tpr", x.measure="fpr")
+plot(roc.obj,
+     main="Balance Amt Drop - ROC Curves",
+     xlab="1 - Specificity: False Positive Rate",
+     ylab="Sensitivity: True Positive Rate",
+     col="blue")
+abline(0,1,col="grey")
